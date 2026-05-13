@@ -1,14 +1,42 @@
+\documentclass[sigconf]{acmart}
+
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+\title{Evaluation Metrics and Analysis Protocol for Edge-Case Recommender System Users}
+
+\author{Agam}
+\affiliation{%
+  \institution{Johannes Kepler University Linz}
+  \country{Austria}
+}
+
+\begin{document}
+
+\begin{abstract}
+This section defines the evaluation protocol for a recommender systems project using the MovieLens dataset. The evaluation compares model behavior across normal users, niche users, and perturbation-based user profiles. Instead of only measuring average recommendation performance, the protocol evaluates ranking quality, recommendation success, stability, robustness, and popularity bias. Popularity bias is treated as a central evaluation dimension because edge-case users may receive worse recommendations when models prioritize popular items over niche preferences.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+
+The goal of this project is to study how different recommender model families behave when evaluated on edge-case user profiles at test time. In particular, the project compares performance on normal users, niche users, and users whose profiles are modified through realistic perturbations. This document focuses on the evaluation metrics and analysis protocol.
+
 \section{Evaluation Metrics and Analysis Protocol}
 
-This work package defines how the recommender models will be evaluated. Since the project focuses on edge-case user profiles, the evaluation does not only measure average recommendation performance. Instead, we compare model behavior across different user groups: normal test users, niche users, and perturbation-based users. The goal is to identify whether different model families behave differently when faced with users whose preferences are less typical or slightly modified at test time.
+This work package defines how the recommender models will be evaluated. Since the project focuses on edge-case user profiles, the evaluation does not only measure average recommendation performance. Instead, we compare model behavior across different user groups: normal test users, niche users, and perturbation-based users.
 
-To keep the evaluation manageable and comparable across models, we focus on four core metrics that are not specific to MovieLens and can be applied to other recommender datasets as well: NDCG@K, HitRate@K, Overlap@K, and RelativeDrop@K. These metrics measure ranking quality, recommendation success, stability, and robustness.
+The goal is to identify whether different recommender model families behave differently when tested on users whose preferences are less typical or slightly modified at test time. A central part of this analysis is popularity bias. We want to test whether edge-case users receive worse recommendations because models prioritize popular items instead of adapting to niche or long-tail preferences.
+
+To keep the evaluation manageable and comparable across models, we focus on five main evaluation dimensions: ranking quality, recommendation success, stability, robustness, and popularity bias. These dimensions are measured using NDCG@K, HitRate@K, Overlap@K, RelativeDrop@K, and popularity-bias metrics such as ARP@K, LongTailRatio@K, and PopularityMismatch@K.
 
 \subsection{Evaluation Groups}
 
 The evaluation is performed separately for different user groups. First, we evaluate all eligible users in the normal test set. This gives the standard overall recommendation performance. Second, we evaluate the subset of niche users identified in the dataset. These users represent real users with less mainstream preference profiles. Third, we evaluate perturbation-based users, which are created by applying small realistic modifications to existing user profiles at test time.
 
-The three main evaluation groups are therefore:
+The three main evaluation groups are:
 
 \begin{itemize}
     \item \textbf{Normal users:} all eligible users in the standard test set.
@@ -20,7 +48,7 @@ Each model is evaluated on each group separately. This makes it possible to obse
 
 \subsection{Recommendation Setting}
 
-All models are evaluated using the same train, validation, and test split. Test interactions are not used during training. For each user, the model receives the available user history and produces a ranked list of recommended items.
+All models are evaluated using the same train, validation, and test split. Test interactions are not used during training. For each user, the model receives the available user history and produces a ranked list of recommended movies.
 
 We evaluate recommendation lists at:
 
@@ -28,13 +56,13 @@ We evaluate recommendation lists at:
 K \in \{5, 10, 20\}
 \]
 
-These values allow us to compare very short recommendation lists with broader recommendation outputs. Items already seen by the user in the training history are removed from the recommendation candidates before evaluation. This ensures that the model is evaluated on its ability to recommend unseen items.
+These values allow us to compare very short recommendation lists with broader recommendation outputs. Items already seen by the user in the training history are removed from the recommendation candidates before evaluation. This ensures that the model is evaluated on its ability to recommend unseen movies.
 
 If computationally feasible, evaluation should be performed over the full item catalog. If this is too expensive, the same fixed negative-sampling strategy must be used for all models to ensure fair comparison.
 
 \subsection{Core Evaluation Metrics}
 
-The evaluation uses four main metrics. These metrics are chosen because they are model-independent and dataset-independent. They require only user-item interactions, test items, and ranked recommendation lists.
+The evaluation uses several main metrics. These metrics are chosen because they are model-independent and can be applied consistently across different recommender model families. They require only user-item interactions, test items, ranked recommendation lists, and item popularity computed from the training set.
 
 \subsubsection{NDCG@K}
 
@@ -91,6 +119,48 @@ RelativeDrop@K =
 
 A large RelativeDrop@K means that a small realistic change to the user profile caused a strong decrease in recommendation quality. This indicates low robustness. A small RelativeDrop@K means that the model remains robust under perturbation.
 
+\subsection{Popularity Bias Analysis}
+
+Popularity bias is a central part of the evaluation because one expected weakness of recommender models is that they may prioritize popular items even for users with niche or long-tail preferences. This is especially relevant for edge-case users. A model may achieve reasonable overall accuracy while still failing to represent niche preferences if it mostly recommends mainstream movies.
+
+Item popularity is computed only from the training set to avoid data leakage. For each movie, popularity is defined as the number of user interactions with that movie in the training data.
+
+\[
+Popularity(i) = |\{u : (u,i) \in Train\}|
+\]
+
+We use three main popularity-bias metrics.
+
+First, \textbf{Average Recommendation Popularity} measures the average popularity of the movies recommended in the top-$K$ list:
+
+\[
+ARP@K =
+\frac{1}{K}
+\sum_{i \in TopK_u} Popularity(i)
+\]
+
+A higher ARP@K means that the model recommends more popular movies. We compare ARP@K across normal users, niche users, and perturbed users. If niche users receive recommendations with similarly high or higher popularity than normal users, this may indicate that the model does not adapt well to niche preferences.
+
+Second, \textbf{Long-Tail Recommendation Ratio} measures the proportion of recommended movies that belong to the long tail:
+
+\[
+LongTailRatio@K =
+\frac{|\{i \in TopK_u : i \in LongTailItems\}|}{K}
+\]
+
+A low LongTailRatio@K for niche users means that the model recommends few long-tail movies, even though these users have shown interest in less popular items.
+
+Third, we define \textbf{Popularity Mismatch} as the difference between the user's long-tail preference ratio and the long-tail ratio in the recommendations:
+
+\[
+PopularityMismatch@K =
+LongTailRatio_{profile}(u) - LongTailRatio@K_{recommendations}(u)
+\]
+
+A large positive mismatch means that the user profile contains many long-tail items, but the recommendation list contains mostly popular items. This is important for our research question because it shows whether edge-case users receive recommendations that are misaligned with their preference profile.
+
+Popularity bias is therefore evaluated as a main part of the analysis. Together with NDCG@K, HitRate@K, Overlap@K, and RelativeDrop@K, these metrics allow us to test whether recommender models perform worse for edge-case users because they over-prioritize popular items.
+
 \subsection{Group-Based Comparison}
 
 After computing the metrics separately for each user group, we compare the results across groups and models.
@@ -115,6 +185,8 @@ A large relative gap indicates that the model performs much worse for niche user
 
 For perturbation users, we compare the original and perturbed profiles using Overlap@K and RelativeDrop@K. This allows us to distinguish between two types of model behavior. A model may be stable, meaning that its recommendation list changes only slightly, or unstable, meaning that a small profile change leads to a very different recommendation list. A model may also be robust, meaning that its accuracy remains similar after perturbation, or non-robust, meaning that performance drops strongly.
 
+For popularity bias, we compare ARP@K, LongTailRatio@K, and PopularityMismatch@K across normal, niche, and perturbed users. This shows whether models recommend overly popular items to edge-case users and whether recommendations match the long-tail structure of the user's profile.
+
 \subsection{Evaluation Procedure}
 
 The evaluation follows a fixed process:
@@ -124,11 +196,12 @@ The evaluation follows a fixed process:
     \item Generate top-$K$ recommendations for all normal test users.
     \item Compute NDCG@K and HitRate@K for the normal user group.
     \item Identify the niche-user subset using the definition from the niche-user work package.
-    \item Compute NDCG@K and HitRate@K for niche users.
+    \item Compute NDCG@K, HitRate@K, ARP@K, LongTailRatio@K, and PopularityMismatch@K for niche users.
     \item Create perturbed user profiles using the perturbation strategy defined in the perturbation work package.
     \item Generate recommendations for both original and perturbed profiles.
     \item Compute Overlap@K to measure recommendation-list stability.
     \item Compute RelativeDrop@K to measure robustness under perturbation.
+    \item Compute popularity-bias metrics for perturbed users.
     \item Compare all results across model families.
 \end{enumerate}
 
@@ -140,47 +213,35 @@ This procedure ensures that all models are tested under the same conditions and 
 \centering
 \caption{Core evaluation metrics used in the project.}
 \label{tab:core_metrics}
-\begin{tabular}{p{0.25\linewidth} p{0.65\linewidth}}
+\begin{tabular}{p{0.25\linewidth} p{0.61\linewidth}}
 \hline
 \textbf{Metric} & \textbf{Purpose} \\
 \hline
-NDCG@K & Measures ranking quality by rewarding relevant items that appear near the top of the recommendation list. \\
+NDCG@K & Measures ranking quality. \\
 HitRate@K & Measures whether at least one relevant item appears in the top-$K$ recommendations. \\
-Overlap@K & Measures stability by comparing recommendation lists before and after perturbation. \\
-RelativeDrop@K & Measures robustness by comparing performance before and after perturbation. \\
+Overlap@K & Measures stability before and after perturbation. \\
+RelativeDrop@K & Measures robustness before and after perturbation. \\
+ARP@K & Measures how popular the recommended items are. \\
+LongTailRatio@K & Measures how many recommended items are long-tail items. \\
+PopularityMismatch@K & Measures mismatch between niche user history and recommendation output. \\
 \hline
 \end{tabular}
 \end{table}
 
 \subsection{Dataset Independence}
 
-The four core metrics are not specific to MovieLens. NDCG@K and HitRate@K only require a set of relevant test items and a ranked recommendation list. Overlap@K only requires two recommendation lists for the same user before and after perturbation. RelativeDrop@K only requires a performance score before and after perturbation.
+Most of the core evaluation metrics are not specific to MovieLens. NDCG@K and HitRate@K only require a set of relevant test items and a ranked recommendation list. Overlap@K only requires two recommendation lists for the same user before and after perturbation. RelativeDrop@K only requires a performance score before and after perturbation.
 
-This means that the same evaluation protocol could be reused on other recommender datasets. Dataset-specific information, such as movie genres in MovieLens, can be added as an optional extension, but it is not required for the core evaluation. This makes the protocol more reproducible and easier to compare across model families.
+Popularity-bias metrics require item popularity, but this can be computed from interaction data in many recommender datasets. Therefore, ARP@K and LongTailRatio@K are also broadly reusable as long as the dataset contains user-item interactions. However, the exact definition of long-tail items may depend on the dataset and should be clearly specified.
 
-\subsection{Optional Popularity Bias Analysis}
-
-Although the main evaluation uses dataset-independent metrics, we can optionally include a popularity-bias analysis because it is especially relevant for niche users. Item popularity can be computed from the training set as the number of interactions per item.
-
-The average recommendation popularity is:
-
-\[
-ARP@K =
-\frac{1}{K}
-\sum_{i \in TopK_u} Popularity(i)
-\]
-
-A high value means that the model tends to recommend popular items. This can be compared between normal users and niche users to test whether models recommend overly popular items even to users with niche preferences.
-
-We can also compute the long-tail recommendation ratio:
-
-\[
-LongTailRatio@K =
-\frac{|\{i \in TopK_u : i \in LongTailItems\}|}{K}
-\]
-
-This measures how many recommended items belong to the long tail. While these popularity-based metrics are useful for MovieLens, they depend on the chosen definition of long-tail items. Therefore, they are treated as an additional analysis rather than as part of the four core metrics.
+Dataset-specific information, such as movie genres in MovieLens, can be added as an optional extension, but it is not required for the core evaluation. This makes the protocol reproducible while still allowing MovieLens-specific analysis if needed.
 
 \subsection{Summary}
 
-The evaluation protocol compares recommender models across normal users, niche users, and perturbation-based users. The four main metrics are NDCG@K, HitRate@K, Overlap@K, and RelativeDrop@K. NDCG@K and HitRate@K measure recommendation quality, Overlap@K measures stability, and RelativeDrop@K measures robustness. After computing these metrics separately for each user group, we compare the results across model families to identify whether some models perform worse on edge-case users or react too strongly to small profile changes.
+The evaluation protocol compares recommender models across normal users, niche users, and perturbation-based users. The main evaluation dimensions are ranking quality, recommendation success, stability, robustness, and popularity bias. NDCG@K and HitRate@K measure recommendation quality, Overlap@K measures stability, RelativeDrop@K measures robustness, and the popularity-bias metrics test whether models prioritize popular items over niche preferences. Popularity bias is central to the project because it helps test whether edge-case users receive worse recommendations when models fail to adapt to long-tail user profiles.
+
+\section*{Disclosure of LLM Assistance}
+
+An AI language model was used to support drafting, restructuring, and improving the clarity of this methodology section. The final methodological choices and written content were reviewed and edited by the author.
+
+\end{document}
